@@ -5,6 +5,12 @@ Welcome to the Tensorflow implementation of the recently introduced
 
 You can find [here](https://github.com/dannyneil/public_plstm) the original implementation from Daniel Neil (in Theano) 
 
+## Results
+Here is the results of frequency discrimination at high resolution sampling
+(described in the paper): in dark blue you see PLSTM that converges way faster then GRU (in light blue)
+
+![PLSTMvsGRU](fig/PSTLMvsGR.png?raw=true "PLSTM vs GRU for very long sequences")
+
 ## Implementation
 
 Here I implemented the [PLSTM](PhasedLSTMCell.py) in a plug-and-play fashion such that if you wanna 
@@ -102,10 +108,6 @@ Furthermore there are three different ways in which you can sample these sine wa
 - Asynchronously 
 
 The 3 ways are implemented and you can select them with the flags.
-
-And here for the High resolution sampling: in dark blue you see PLSTM that converges way faster then GRU (in light blue)
-
-![PLSTMvsGRU](fig/acc_val.png?raw=true "PLSTM vs GRU for very long sequences")
 
 ## Contact  
 Let me know if you encounter any problem: enea.ceolini@gmail.com 
