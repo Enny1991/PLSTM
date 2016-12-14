@@ -1,4 +1,4 @@
-# Phased LSTM implementation if Tensorflow
+# Phased LSTM implementation in Tensorflow
 
 Welcome to the Tensorflow implementation of the recently introduced
 [Phased LSTM](https://arxiv.org/abs/1610.09513) by Neil et. al @ NIPS 2016 
