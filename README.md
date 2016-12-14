@@ -9,7 +9,7 @@ You can find [here](https://github.com/dannyneil/public_plstm) the original impl
 Here is the results of frequency discrimination at high resolution sampling
 (described in the paper): in dark blue you see PLSTM that converges way faster then GRU (in light blue)
 
-![PLSTMvsGRU](fig/PLSTMvsGR.png?raw=true "PLSTM vs GRU for very long sequences")
+![PLSTMvsGRU](fig/PLSTMvsGRU.png?raw=true "PLSTM vs GRU for very long sequences")
 
 ## Implementation
 
