@@ -109,6 +109,16 @@ Furthermore there are three different ways in which you can sample these sine wa
 
 The 3 ways are implemented and you can select them with the flags.
 
+---
+## Update 20-12-2016
+
+Added a builder for multilayer PLSM
+```python
+    outputs = multiPLSTM(_X, lens, n_layers, n_hidden, n_input)
+```
+
+---
+
 ## Contact  
 Let me know if you encounter any problem: enea.ceolini@gmail.com 
 

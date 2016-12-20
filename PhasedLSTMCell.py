@@ -338,3 +338,24 @@ class PhasedLSTMCell(RNNCell):
         new_state = (LSTMStateTuple(c, m) if self._state_is_tuple
                      else array_ops.concat(1, [c, m]))
         return m, new_state
+
+
+def multiPLSTM(input, lens, n_layers, units_p_layer, n_input):
+    """
+    Function to build multilayer PLSTM
+    :param input: 3D tensor, where the time input is appended and represents the last feature of the tensor
+    :param lens: 2D tensor, length of the sequences in the batch (for synamic rnn use)
+    :param n_layers: integer, number of layers
+    :param units_p_layer: integer, number of units per layer
+    :param n_input: integer, number of features in the input (without time feature)
+    :return: 3D tensor, output of the multilayer PLSTM
+    """
+    times = tf.slice(input, [0, 0, n_input], [-1, -1, 1])
+    newX = tf.slice(input, [0, 0, 0], [-1, -1, n_input])
+    for k in xrange(n_layers):
+        newX = tf.concat(2, [newX, times])
+        with tf.variable_scope("{}".format(k)):
+            cell = PhasedLSTMCell(units_p_layer, use_peepholes=True, state_is_tuple=True)
+            outputs, states = tf.nn.dynamic_rnn(cell, newX, dtype=tf.float32, sequence_length=lens)
+            newX = outputs
+    return newX

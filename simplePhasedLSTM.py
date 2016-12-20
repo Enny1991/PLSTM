@@ -3,7 +3,7 @@ import tensorflow as tf
 import numpy as np
 from tabulate import tabulate
 from tensorflow.python.ops.rnn_cell import LSTMCell, GRUCell
-from PhasedLSTMCell import PhasedLSTMCell
+from PhasedLSTMCell import PhasedLSTMCell, multiPLSTM
 
 # Unit test for Phased LSTM
 # Here I implement the first task described in the original paper of PLSTM
@@ -18,6 +18,7 @@ flags.DEFINE_integer("n_hidden", 100, "hidden units in the recurrent layer")
 flags.DEFINE_integer("n_epochs", 30, "number of epochs")
 flags.DEFINE_integer("batch_size", 32, "batch size")
 flags.DEFINE_integer("b_per_epoch", 80, "batches per epoch")
+flags.DEFINE_integer("n_layers", 4, "hidden units in the recurrent layer")
 flags.DEFINE_float("max_length", 125, "max length of sin waves")
 flags.DEFINE_float("min_length", 50, "min length of sine waves")
 flags.DEFINE_float("max_f_off", 100, "max frequency for the off set")
@@ -146,8 +147,10 @@ def RNN(_X, _weights, _biases, lens):
     else:
         raise ValueError("Unit '{}' not implemented.".format(FLAGS.unit))
 
-    outputs, states = tf.nn.dynamic_rnn(cell, _X, dtype=tf.float32, sequence_length=lens)
+    outputs = multiPLSTM(_X, lens, FLAGS.n_layers, FLAGS.n_hidden, n_input)
 
+    outputs = tf.slice(outputs, [0, 0, 0], [-1, -1, FLAGS.n_hidden])
+    
     # TODO better (?) in lack of smart indexing
     batch_size = tf.shape(outputs)[0]
     max_len = tf.shape(outputs)[1]
