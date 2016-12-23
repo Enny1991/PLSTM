@@ -146,8 +146,8 @@ def RNN(_X, _weights, _biases, lens):
         cell = LSTMCell(FLAGS.n_hidden, use_peepholes=True, state_is_tuple=True)
     else:
         raise ValueError("Unit '{}' not implemented.".format(FLAGS.unit))
-
-    outputs = multiPLSTM(_X, lens, FLAGS.n_layers, FLAGS.n_hidden, n_input)
+    initial_states = [tf.nn.rnn_cell.LSTMStateTuple(tf.zeros([FLAGS.batch_size, FLAGS.n_hidden], tf.float32), tf.zeros([FLAGS.batch_size, FLAGS.n_hidden], tf.float32)) for _ in range(FLAGS.n_layers)]
+    outputs, initial_states = multiPLSTM(_X, lens, FLAGS.n_layers, FLAGS.n_hidden, n_input, initial_states)
 
     outputs = tf.slice(outputs, [0, 0, 0], [-1, -1, FLAGS.n_hidden])
     
