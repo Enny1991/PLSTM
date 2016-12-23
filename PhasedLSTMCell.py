@@ -352,7 +352,7 @@ def multiPLSTM(input, lens, n_layers, units_p_layer, n_input):
     """
     times = tf.slice(input, [0, 0, n_input], [-1, -1, 1])
     newX = tf.slice(input, [0, 0, 0], [-1, -1, n_input])
-    for k in xrange(n_layers):
+    for k in range(n_layers):
         newX = tf.concat(2, [newX, times])
         with tf.variable_scope("{}".format(k)):
             cell = PhasedLSTMCell(units_p_layer, use_peepholes=True, state_is_tuple=True)

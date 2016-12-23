@@ -115,7 +115,7 @@ def gen_async_sin(async_sampling, resolution=None, batch_size=32, on_target_T=(5
     x = np.zeros((batch_size, max_len, 1))
     y = np.zeros((batch_size, 2))
     t = np.zeros((batch_size, max_len, 1))
-    for i, s, l, n in zip(xrange(batch_size), start_times, lens, samples):
+    for i, s, l, n in zip(range(batch_size), start_times, lens, samples):
         if async_sampling:
             time_points = np.reshape(np.sort(np.random.uniform(s, s + l, n)), [-1, 1])
         else:
@@ -186,13 +186,13 @@ def main(_):
     b_out_hist = tf.summary.histogram("biases_out", biases['out'])
 
     # Let's define the training and testing operations
-    print "Compiling RNN...",
+    print ("Compiling RNN...",)
     predictions = RNN(x, weights, biases, lens)
-    print "DONE!"
+    print ("DONE!")
 
-    print "Compiling cost functions...",
+    print ("Compiling cost functions...",)
     cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(predictions, y))
-    print "DONE!"
+    print ("DONE!")
 
     # I like to log the gradients
     tvars = tf.trainable_variables()
@@ -203,9 +203,9 @@ def main(_):
     cost_summary = tf.summary.scalar("cost", cost)
     cost_val_summary = tf.summary.scalar("cost_val", cost)
 
-    print "Calculating gradients...",
+    print ("Calculating gradients...",)
     optimizer = tf.train.AdamOptimizer().minimize(cost)
-    print "DONE!"
+    print ("DONE!")
 
     # evaluation
     correct_pred = tf.equal(tf.argmax(predictions, 1), tf.argmax(y, 1))
@@ -221,11 +221,11 @@ def main(_):
 
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
 
-        print "Initializing variables...",
+        print ("Initializing variables...",)
         sess.run(init)
         # for backward compatibility (v < 0.12.0) use the following line instead of the above
         # initialize_all_variables(sess)
-        print "DONE!"
+        print ("DONE!")
 
         writer = tf.summary.FileWriter("phasedLSTM_run/{}".format(run_name), sess.graph)
 
@@ -269,7 +269,7 @@ def main(_):
                      ["Test", loss_test, acc_test]]
             headers = ["Epoch={}".format(step), "Cost", "Accuracy"]
 
-            print tabulate(table, headers, tablefmt='grid')
+            print (tabulate(table, headers, tablefmt='grid'))
 
 
 if __name__ == "__main__":
