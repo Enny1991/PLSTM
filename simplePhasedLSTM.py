@@ -115,7 +115,7 @@ def gen_async_sin(async_sampling, resolution=None, batch_size=32, on_target_T=(5
     x = np.zeros((batch_size, max_len, 1))
     y = np.zeros((batch_size, 2))
     t = np.zeros((batch_size, max_len, 1))
-    for i, s, l, n in zip(xrange(batch_size), start_times, lens, samples):
+    for i, s, l, n in zip(range(batch_size), start_times, lens, samples):
         if async_sampling:
             time_points = np.reshape(np.sort(np.random.uniform(s, s + l, n)), [-1, 1])
         else:
@@ -146,8 +146,8 @@ def RNN(_X, _weights, _biases, lens):
         cell = LSTMCell(FLAGS.n_hidden, use_peepholes=True, state_is_tuple=True)
     else:
         raise ValueError("Unit '{}' not implemented.".format(FLAGS.unit))
-
-    outputs = multiPLSTM(_X, lens, FLAGS.n_layers, FLAGS.n_hidden, n_input)
+    initial_states = [tf.nn.rnn_cell.LSTMStateTuple(tf.zeros([FLAGS.batch_size, FLAGS.n_hidden], tf.float32), tf.zeros([FLAGS.batch_size, FLAGS.n_hidden], tf.float32)) for _ in range(FLAGS.n_layers)]
+    outputs, initial_states = multiPLSTM(_X, lens, FLAGS.n_layers, FLAGS.n_hidden, n_input, initial_states)
 
     outputs = tf.slice(outputs, [0, 0, 0], [-1, -1, FLAGS.n_hidden])
     
@@ -159,7 +159,7 @@ def RNN(_X, _weights, _biases, lens):
     flat = tf.reshape(outputs, [-1, out_size])
     relevant = tf.gather(flat, index)
 
-    return tf.nn.bias_add(tf.matmul(relevant, _weights['out']), _biases['out'])
+    return tf.nn.bias_add(tf.matmul(relevant, _weights['out']), _biases['out']), initial_states
 
 
 def main(_):
@@ -186,26 +186,29 @@ def main(_):
     b_out_hist = tf.summary.histogram("biases_out", biases['out'])
 
     # Let's define the training and testing operations
-    print "Compiling RNN...",
-    predictions = RNN(x, weights, biases, lens)
-    print "DONE!"
+    print ("Compiling RNN...",)
+    predictions, initial_states = RNN(x, weights, biases, lens)
+    print ("DONE!")
 
-    print "Compiling cost functions...",
+    # Register initial_states to be monitored by tensorboard
+    initial_states_hist = tf.summary.histogram("initial_states", initial_states[0][0])
+
+    print ("Compiling cost functions...",)
     cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(predictions, y))
-    print "DONE!"
+    print ("DONE!")
 
     # I like to log the gradients
     tvars = tf.trainable_variables()
     grads = tf.gradients(cost, tvars)
 
     grads_hist = [tf.summary.histogram("grads_{}".format(i), k) for i, k in enumerate(grads) if k is not None]
-    merged_grads = tf.summary.merge([grads_hist] + [w_out_hist, b_out_hist])
+    merged_grads = tf.summary.merge([grads_hist] + [w_out_hist, b_out_hist] + [initial_states_hist])
     cost_summary = tf.summary.scalar("cost", cost)
     cost_val_summary = tf.summary.scalar("cost_val", cost)
 
-    print "Calculating gradients...",
+    print ("Calculating gradients...",)
     optimizer = tf.train.AdamOptimizer().minimize(cost)
-    print "DONE!"
+    print ("DONE!")
 
     # evaluation
     correct_pred = tf.equal(tf.argmax(predictions, 1), tf.argmax(y, 1))
@@ -221,11 +224,11 @@ def main(_):
 
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
 
-        print "Initializing variables...",
+        print ("Initializing variables...",)
         sess.run(init)
         # for backward compatibility (v < 0.12.0) use the following line instead of the above
         # initialize_all_variables(sess)
-        print "DONE!"
+        print ("DONE!")
 
         writer = tf.summary.FileWriter("phasedLSTM_run/{}".format(run_name), sess.graph)
 
@@ -253,7 +256,7 @@ def main(_):
                 train_acc += res[2] / FLAGS.b_per_epoch
 
             # test accuracy
-            test_xs, test_ys, leng, _, _ = gen_async_sin(FLAGS.async, FLAGS.resolution, FLAGS.batch_size * 10,
+            test_xs, test_ys, leng, _, _ = gen_async_sin(FLAGS.async, FLAGS.resolution, FLAGS.batch_size,
                                                          [FLAGS.min_f_on, FLAGS.max_f_on],
                                                          [FLAGS.min_f_off, FLAGS.max_f_off],
                                                          FLAGS.max_length,
@@ -269,7 +272,7 @@ def main(_):
                      ["Test", loss_test, acc_test]]
             headers = ["Epoch={}".format(step), "Cost", "Accuracy"]
 
-            print tabulate(table, headers, tablefmt='grid')
+            print (tabulate(table, headers, tablefmt='grid'))
 
 
 if __name__ == "__main__":
