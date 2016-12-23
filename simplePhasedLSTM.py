@@ -159,7 +159,7 @@ def RNN(_X, _weights, _biases, lens):
     flat = tf.reshape(outputs, [-1, out_size])
     relevant = tf.gather(flat, index)
 
-    return tf.nn.bias_add(tf.matmul(relevant, _weights['out']), _biases['out'])
+    return tf.nn.bias_add(tf.matmul(relevant, _weights['out']), _biases['out']), initial_states
 
 
 def main(_):
@@ -187,8 +187,11 @@ def main(_):
 
     # Let's define the training and testing operations
     print ("Compiling RNN...",)
-    predictions = RNN(x, weights, biases, lens)
+    predictions, initial_states = RNN(x, weights, biases, lens)
     print ("DONE!")
+
+    # Register initial_states to be monitored by tensorboard
+    initial_states_hist = tf.summary.histogram("initial_states", initial_states[0][0])
 
     print ("Compiling cost functions...",)
     cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(predictions, y))
@@ -199,7 +202,7 @@ def main(_):
     grads = tf.gradients(cost, tvars)
 
     grads_hist = [tf.summary.histogram("grads_{}".format(i), k) for i, k in enumerate(grads) if k is not None]
-    merged_grads = tf.summary.merge([grads_hist] + [w_out_hist, b_out_hist])
+    merged_grads = tf.summary.merge([grads_hist] + [w_out_hist, b_out_hist] + [initial_states_hist])
     cost_summary = tf.summary.scalar("cost", cost)
     cost_val_summary = tf.summary.scalar("cost_val", cost)
 
