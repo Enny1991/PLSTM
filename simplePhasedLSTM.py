@@ -253,7 +253,7 @@ def main(_):
                 train_acc += res[2] / FLAGS.b_per_epoch
 
             # test accuracy
-            test_xs, test_ys, leng, _, _ = gen_async_sin(FLAGS.async, FLAGS.resolution, FLAGS.batch_size * 10,
+            test_xs, test_ys, leng, _, _ = gen_async_sin(FLAGS.async, FLAGS.resolution, FLAGS.batch_size,
                                                          [FLAGS.min_f_on, FLAGS.max_f_on],
                                                          [FLAGS.min_f_off, FLAGS.max_f_off],
                                                          FLAGS.max_length,
