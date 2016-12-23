@@ -340,23 +340,34 @@ class PhasedLSTMCell(RNNCell):
         return m, new_state
 
 
-def multiPLSTM(input, lens, n_layers, units_p_layer, n_input, initial_states):
+def multiPLSTM(input, batch_size, lens, n_layers, units_p_layer, n_input, initial_states=None):
     """
     Function to build multilayer PLSTM
     :param input: 3D tensor, where the time input is appended and represents the last feature of the tensor
+    :param batch_size: integer, batch size
     :param lens: 2D tensor, length of the sequences in the batch (for synamic rnn use)
     :param n_layers: integer, number of layers
     :param units_p_layer: integer, number of units per layer
     :param n_input: integer, number of features in the input (without time feature)
+    :param initial_states: list of tuples of initial states
     :return: 3D tensor, output of the multilayer PLSTM
     """
-    assert(len(initial_states) == n_layers)
+    if initial_states is None:
+        initial_states = [tf.nn.rnn_cell.LSTMStateTuple(tf.zeros([batch_size, units_p_layer], tf.float32),
+                                                        tf.zeros([batch_size, units_p_layer], tf.float32))
+                          for _ in range(n_layers)]
+
+    assert (len(initial_states) == n_layers)
     times = tf.slice(input, [0, 0, n_input], [-1, -1, 1])
     newX = tf.slice(input, [0, 0, 0], [-1, -1, n_input])
+    
     for k in range(n_layers):
         newX = tf.concat(2, [newX, times])
         with tf.variable_scope("{}".format(k)):
-            cell = PhasedLSTMCell(units_p_layer, use_peepholes=True, state_is_tuple=True)
-            outputs, initial_states[k] = tf.nn.dynamic_rnn(cell, newX, dtype=tf.float32, sequence_length=lens, initial_state=initial_states[k])
+            cell = PhasedLSTMCell(units_p_layer, use_peepholes=True,
+                                  state_is_tuple=True)
+            outputs, initial_states[k] = tf.nn.dynamic_rnn(cell, newX, dtype=tf.float32,
+                                                           sequence_length=lens,
+                                                           initial_state=initial_states[k])
             newX = outputs
     return newX, initial_states
