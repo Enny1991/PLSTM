@@ -364,6 +364,7 @@ def multiPLSTM(input, batch_size, lens, n_layers, units_p_layer, n_input, initia
     for k in range(n_layers):
         newX = tf.concat(2, [newX, times])
         with tf.variable_scope("{}".format(k)):
+            # cell = tf.nn.rnn_cell.BasicLSTMCell(units_p_layer)
             cell = PhasedLSTMCell(units_p_layer, use_peepholes=True,
                                   state_is_tuple=True)
             outputs, initial_states[k] = tf.nn.dynamic_rnn(cell, newX, dtype=tf.float32,
