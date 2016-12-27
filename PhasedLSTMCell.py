@@ -340,7 +340,7 @@ class PhasedLSTMCell(RNNCell):
         return m, new_state
 
 
-def multiPLSTM(input, batch_size, lens, n_layers, units_p_layer, n_input, initial_states=None):
+def multiPLSTM(input, batch_size, lens, n_layers, units_p_layer, n_input, initial_states):
     """
     Function to build multilayer PLSTM
     :param input: 3D tensor, where the time input is appended and represents the last feature of the tensor
@@ -352,10 +352,6 @@ def multiPLSTM(input, batch_size, lens, n_layers, units_p_layer, n_input, initia
     :param initial_states: list of tuples of initial states
     :return: 3D tensor, output of the multilayer PLSTM
     """
-    if initial_states is None:
-        initial_states = [tf.nn.rnn_cell.LSTMStateTuple(tf.zeros([batch_size, units_p_layer], tf.float32),
-                                                        tf.zeros([batch_size, units_p_layer], tf.float32))
-                          for _ in range(n_layers)]
 
     assert (len(initial_states) == n_layers)
     times = tf.slice(input, [0, 0, n_input], [-1, -1, 1])
@@ -371,4 +367,4 @@ def multiPLSTM(input, batch_size, lens, n_layers, units_p_layer, n_input, initia
                                                            sequence_length=lens,
                                                            initial_state=initial_states[k])
             newX = outputs
-    return newX, initial_states
+    return newX
