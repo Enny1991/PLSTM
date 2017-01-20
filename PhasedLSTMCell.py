@@ -280,7 +280,7 @@ class PhasedLSTMCell(RNNCell):
 
             # when manually setting, hard on over r_on, else as previous
             if self.manual_set:
-                k = tf.select(is_up, 1, tf.select(is_down, 1, self.alpha * phi))
+                k = tf.select(is_up, tf.to_float(tf.greater(phi / (r_on_broadcast * 0.5),0.)), tf.select(is_down, tf.to_float(tf.greater(2. - 2. * (phi / r_on_broadcast), 0.)), self.alpha * phi))
             else:
                 k = tf.select(is_up, phi / (r_on_broadcast * 0.5),
                               tf.select(is_down, 2. - 2. * (phi / r_on_broadcast), self.alpha * phi))
