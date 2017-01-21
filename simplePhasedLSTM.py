@@ -137,7 +137,7 @@ def gen_async_sin(async_sampling, resolution=None, batch_size=32, on_target_T=(5
     return x, y, samples, posTs, negTs
 
 
-def RNN(_X, _weights, _biases, lens):
+def RNN(_X, _weights, _biases, lens, initial_states):
     if FLAGS.unit == "PLSTM":
         cell = PhasedLSTMCell(FLAGS.n_hidden, use_peepholes=True, state_is_tuple=True)
     elif FLAGS.unit == "GRU":
@@ -146,11 +146,11 @@ def RNN(_X, _weights, _biases, lens):
         cell = LSTMCell(FLAGS.n_hidden, use_peepholes=True, state_is_tuple=True)
     else:
         raise ValueError("Unit '{}' not implemented.".format(FLAGS.unit))
-    initial_states = [tf.nn.rnn_cell.LSTMStateTuple(tf.zeros([FLAGS.batch_size, FLAGS.n_hidden], tf.float32), tf.zeros([FLAGS.batch_size, FLAGS.n_hidden], tf.float32)) for _ in range(FLAGS.n_layers)]
-    outputs, initial_states = multiPLSTM(_X, FLAGS.batch_size, lens, FLAGS.n_layers, FLAGS.n_hidden, n_input, initial_states)
+
+    outputs = multiPLSTM(_X, FLAGS.batch_size, lens, FLAGS.n_layers, FLAGS.n_hidden, n_input, initial_states)
 
     outputs = tf.slice(outputs, [0, 0, 0], [-1, -1, FLAGS.n_hidden])
-    
+
     # TODO better (?) in lack of smart indexing
     batch_size = tf.shape(outputs)[0]
     max_len = tf.shape(outputs)[1]
@@ -159,7 +159,7 @@ def RNN(_X, _weights, _biases, lens):
     flat = tf.reshape(outputs, [-1, out_size])
     relevant = tf.gather(flat, index)
 
-    return tf.nn.bias_add(tf.matmul(relevant, _weights['out']), _biases['out']), initial_states
+    return tf.nn.bias_add(tf.matmul(relevant, _weights['out']), _biases['out'])
 
 
 def main(_):
@@ -187,7 +187,8 @@ def main(_):
 
     # Let's define the training and testing operations
     print ("Compiling RNN...",)
-    predictions, initial_states = RNN(x, weights, biases, lens)
+    initial_states = [None for _ in range(FLAGS.n_layers)]
+    predictions = RNN(x, weights, biases, lens, initial_states)
     print ("DONE!")
 
     # Register initial_states to be monitored by tensorboard
@@ -256,6 +257,9 @@ def main(_):
                 train_acc += res[2] / FLAGS.b_per_epoch
 
             # test accuracy
+            #wipe initial_states before testing
+            for i, _ in enumerate(initial_states):
+                initial_states[i] = None
             test_xs, test_ys, leng, _, _ = gen_async_sin(FLAGS.async, FLAGS.resolution, FLAGS.batch_size,
                                                          [FLAGS.min_f_on, FLAGS.max_f_on],
                                                          [FLAGS.min_f_off, FLAGS.max_f_off],
@@ -273,6 +277,10 @@ def main(_):
             headers = ["Epoch={}".format(step), "Cost", "Accuracy"]
 
             print (tabulate(table, headers, tablefmt='grid'))
+            #wipe initial_states after testing
+            for i, _ in enumerate(initial_states):
+                initial_states[i] = None
+
 
 
 if __name__ == "__main__":
