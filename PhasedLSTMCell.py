@@ -164,7 +164,7 @@ class PhasedLSTMCell(RNNCell):
             Reading experiment in the Phased LSTM paper. Default value: False.
           trainable: (optional) If False, the trainable parameter of variable tau,
             r_on and s are set to False such that learning is disabled on these
-            parameters.
+            parameters. Default value: True.
         """
         if not state_is_tuple:
             logging.warn("%s: Using a concatenated state is slower and will soon be "
