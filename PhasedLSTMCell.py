@@ -125,7 +125,7 @@ class PhasedLSTMCell(RNNCell):
                  num_unit_shards=1, num_proj_shards=1,
                  forget_bias=1.0, state_is_tuple=True,
                  activation=tanh, alpha=0.001, r_on_init=0.05, tau_init=6.,
-                 manual_set=False):
+                 manual_set=False,trainable=True):
         """Initialize the parameters for an PLSTM cell.
 
         Args:
@@ -157,6 +157,14 @@ class PhasedLSTMCell(RNNCell):
           r_on_init: (optional) A Float value. Initial value for r_on
           tau_init: (optional) A Float value. Max value for the exponential
             initialization of tau
+          manual_set: (optional) If True, tau_init is set as a constant value
+            instead of being randomised (default behavioiur) and the phase variable
+            s is set to zero. The kronos gate behaviour is hard on during r_on.
+            This mimics the behaviour of the audio/video input layers of the Lip
+            Reading experiment in the Phased LSTM paper. Default value: False.
+          trainable: (optional) If False, the trainable parameter of variable tau,
+            r_on and s are set to False such that learning is disabled on these
+            parameters.
         """
         if not state_is_tuple:
             logging.warn("%s: Using a concatenated state is slower and will soon be "
@@ -179,6 +187,7 @@ class PhasedLSTMCell(RNNCell):
         self.tau_init = tau_init
 
         self.manual_set = manual_set
+        self.trainable = trainable
 
         if num_proj:
             self._state_size = (
@@ -250,17 +259,17 @@ class PhasedLSTMCell(RNNCell):
             tau = vs.get_variable(
                 "T", shape=[self._num_units],
                 initializer=random_exp_initializer(0, self.tau_init) if not self.manual_set else init_ops.constant_initializer(self.tau_init),
-                trainable=not self.manual_set,dtype=dtype)
+                trainable=self.trainable,dtype=dtype)
 
             r_on = vs.get_variable(
                 "R", shape=[self._num_units],
                 initializer=init_ops.constant_initializer(self.r_on_init),
-                trainable=not self.manual_set, dtype=dtype)
+                trainable=self.trainable, dtype=dtype)
 
             s = vs.get_variable(
                 "S", shape=[self._num_units],
                 initializer=init_ops.random_uniform_initializer(0., tau.initialized_value()) if not self.manual_set else init_ops.constant_initializer(0.),
-                trainable=not self.manual_set,dtype=dtype)
+                trainable=self.trainable,dtype=dtype)
                 # for backward compatibility (v < 0.12.0) use the following line instead of the above
                 # initializer = init_ops.random_uniform_initializer(0., tau), dtype = dtype)
 
