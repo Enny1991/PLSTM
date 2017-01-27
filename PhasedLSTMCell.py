@@ -124,7 +124,8 @@ class PhasedLSTMCell(RNNCell):
                  initializer=None, num_proj=None, proj_clip=None,
                  num_unit_shards=1, num_proj_shards=1,
                  forget_bias=1.0, state_is_tuple=True,
-                 activation=tanh, alpha=0.001, r_on_init=0.05, tau_init=6.):
+                 activation=tanh, alpha=0.001, r_on_init=0.05, tau_init=6.,
+                 manual_set=False,trainable=True):
         """Initialize the parameters for an PLSTM cell.
 
         Args:
@@ -156,6 +157,14 @@ class PhasedLSTMCell(RNNCell):
           r_on_init: (optional) A Float value. Initial value for r_on
           tau_init: (optional) A Float value. Max value for the exponential
             initialization of tau
+          manual_set: (optional) If True, tau_init is set as a constant value
+            instead of being randomised (default behavioiur) and the phase variable
+            s is set to zero. The kronos gate behaviour is hard on during r_on.
+            This mimics the behaviour of the audio/video input layers of the Lip
+            Reading experiment in the Phased LSTM paper. Default value: False.
+          trainable: (optional) If False, the trainable parameter of variable tau,
+            r_on and s are set to False such that learning is disabled on these
+            parameters. Default value: True.
         """
         if not state_is_tuple:
             logging.warn("%s: Using a concatenated state is slower and will soon be "
@@ -176,6 +185,9 @@ class PhasedLSTMCell(RNNCell):
         self.alpha = alpha
         self.r_on_init = r_on_init
         self.tau_init = tau_init
+
+        self.manual_set = manual_set
+        self.trainable = trainable
 
         if num_proj:
             self._state_size = (
@@ -246,15 +258,18 @@ class PhasedLSTMCell(RNNCell):
 
             tau = vs.get_variable(
                 "T", shape=[self._num_units],
-                initializer=random_exp_initializer(0, self.tau_init), dtype=dtype)
+                initializer=random_exp_initializer(0, self.tau_init) if not self.manual_set else init_ops.constant_initializer(self.tau_init),
+                trainable=self.trainable,dtype=dtype)
 
             r_on = vs.get_variable(
                 "R", shape=[self._num_units],
-                initializer=init_ops.constant_initializer(self.r_on_init), dtype=dtype)
+                initializer=init_ops.constant_initializer(self.r_on_init),
+                trainable=self.trainable, dtype=dtype)
 
             s = vs.get_variable(
                 "S", shape=[self._num_units],
-                initializer=init_ops.random_uniform_initializer(0., tau.initialized_value()), dtype=dtype)
+                initializer=init_ops.random_uniform_initializer(0., tau.initialized_value()) if not self.manual_set else init_ops.constant_initializer(0.),
+                trainable=self.trainable,dtype=dtype)
                 # for backward compatibility (v < 0.12.0) use the following line instead of the above
                 # initializer = init_ops.random_uniform_initializer(0., tau), dtype = dtype)
 
@@ -272,8 +287,12 @@ class PhasedLSTMCell(RNNCell):
             is_up = tf.less(phi, (r_on_broadcast * 0.5))
             is_down = tf.logical_and(tf.less(phi, r_on_broadcast), tf.logical_not(is_up))
 
-            k = tf.select(is_up, phi / (r_on_broadcast * 0.5),
-                          tf.select(is_down, 2. - 2. * (phi / r_on_broadcast), self.alpha * phi))
+            # when manually setting, hard on over r_on, else as previous
+            if self.manual_set:
+                k = tf.select(tf.logical_or(is_up,is_down), tf.to_float(is_up), self.alpha * phi)
+            else:
+                k = tf.select(is_up, phi / (r_on_broadcast * 0.5),
+                              tf.select(is_down, 2. - 2. * (phi / r_on_broadcast), self.alpha * phi))
 
             # --------------------------------------- #
             # ------------- PHASED LSTM ------------- #
@@ -356,7 +375,7 @@ def multiPLSTM(input, batch_size, lens, n_layers, units_p_layer, n_input, initia
     assert (len(initial_states) == n_layers)
     times = tf.slice(input, [0, 0, n_input], [-1, -1, 1])
     newX = tf.slice(input, [0, 0, 0], [-1, -1, n_input])
-    
+
     for k in range(n_layers):
         newX = tf.concat(2, [newX, times])
         with tf.variable_scope("{}".format(k)):
