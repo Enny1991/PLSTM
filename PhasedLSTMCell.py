@@ -4,18 +4,17 @@ from __future__ import print_function
 
 import math
 import tensorflow as tf
-from tensorflow.python.ops import clip_ops
-from tensorflow.python.ops import init_ops
-from tensorflow.python.ops import nn_ops
-from tensorflow.python.ops import math_ops
-from tensorflow.python.ops.math_ops import sigmoid
-from tensorflow.python.ops.math_ops import tanh
+
+from tensorflow.contrib.rnn.python.ops import core_rnn_cell
+from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
 from tensorflow.python.ops import array_ops
+from tensorflow.python.ops import clip_ops
+from tensorflow.python.ops import init_ops
+from tensorflow.python.ops import math_ops
+from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import variable_scope as vs
-from tensorflow.python.ops.rnn_cell import RNNCell, LSTMStateTuple
 from tensorflow.python.platform import tf_logging as logging
-from tensorflow.python.framework import dtypes
 from tensorflow.python.ops import random_ops
 
 
@@ -43,7 +42,7 @@ def random_exp_initializer(minval=0, maxval=None, seed=None,
     return _initializer
 
 # Here we need to register the gradient for the mod operation
-@ops.RegisterGradient("Mod")
+@ops.RegisterGradient("FloorMod")
 def _mod_grad(op, grad):
     x, y = op.inputs
     gz = grad
@@ -88,8 +87,8 @@ def _get_sharded_variable(name, shape, dtype, num_shards):
     return shards
 
 
-class PhasedLSTMCell(RNNCell):
-    """Phased Long short-term memory unit (PLSTM) recurrent network cell.
+class PhasedLSTMCell(core_rnn_cell.RNNCell):
+    """Phased Long short-term memory unit (PhasedLSTM) recurrent network cell.
 
     The default non-peephole implementation is based on:
 
@@ -124,9 +123,9 @@ class PhasedLSTMCell(RNNCell):
                  initializer=None, num_proj=None, proj_clip=None,
                  num_unit_shards=1, num_proj_shards=1,
                  forget_bias=1.0, state_is_tuple=True,
-                 activation=tanh, alpha=0.001, r_on_init=0.05, tau_init=6.,
+                 activation=math_ops.tanh, alpha=0.001, r_on_init=0.05, tau_init=6.,
                  manual_set=False,trainable=True):
-        """Initialize the parameters for an PLSTM cell.
+        """Initialize the parameters for an PhasedLSTM cell.
 
         Args:
           num_units: int, The number of units in the LSTM cell
@@ -191,12 +190,12 @@ class PhasedLSTMCell(RNNCell):
 
         if num_proj:
             self._state_size = (
-                LSTMStateTuple(num_units, num_proj)
+                core_rnn_cell.LSTMStateTuple(num_units, num_proj)
                 if state_is_tuple else num_units + num_proj)
             self._output_size = num_proj
         else:
             self._state_size = (
-                LSTMStateTuple(num_units, num_units)
+                core_rnn_cell.LSTMStateTuple(num_units, num_units)
                 if state_is_tuple else 2 * num_units)
             self._output_size = num_units
 
@@ -233,6 +232,8 @@ class PhasedLSTMCell(RNNCell):
           ValueError: If input size cannot be inferred from inputs via
             static shape inference.
         """
+
+        sigmoid = math_ops.sigmoid
         num_proj = self._num_units if self._num_proj is None else self._num_proj
 
         if self._state_is_tuple:
@@ -257,17 +258,17 @@ class PhasedLSTMCell(RNNCell):
             # --------------------------------------- #
 
             tau = vs.get_variable(
-                "T", shape=[self._num_units],
+                "tau", shape=[self._num_units],
                 initializer=random_exp_initializer(0, self.tau_init) if not self.manual_set else init_ops.constant_initializer(self.tau_init),
                 trainable=self.trainable,dtype=dtype)
 
             r_on = vs.get_variable(
-                "R", shape=[self._num_units],
+                "r_on", shape=[self._num_units],
                 initializer=init_ops.constant_initializer(self.r_on_init),
                 trainable=self.trainable, dtype=dtype)
 
             s = vs.get_variable(
-                "S", shape=[self._num_units],
+                "s_phase", shape=[self._num_units],
                 initializer=init_ops.random_uniform_initializer(0., tau.initialized_value()) if not self.manual_set else init_ops.constant_initializer(0.),
                 trainable=self.trainable,dtype=dtype)
                 # for backward compatibility (v < 0.12.0) use the following line instead of the above
@@ -281,18 +282,24 @@ class PhasedLSTMCell(RNNCell):
             tau_broadcast = tf.abs(tau_broadcast)
             times = tf.tile(times, [1, self._num_units])
 
+
             # calculate kronos gate
-            phi = tf.div(tf.mod(tf.mod(times - s_broadcast, tau_broadcast) + tau_broadcast, tau_broadcast),
-                         tau_broadcast)
-            is_up = tf.less(phi, (r_on_broadcast * 0.5))
-            is_down = tf.logical_and(tf.less(phi, r_on_broadcast), tf.logical_not(is_up))
+            # TODO: run tests with tf.divide and tf.mod after changes in TF API
+
+            phi = tf.divide(tf.mod(times - s_broadcast, tau_broadcast, name="phi_mod"), tau_broadcast, name="phi_div")
+
+            #phi = tf.divide(tf.mod(tf.mod(times - s_broadcast, tau_broadcast) + tau_broadcast, tau_broadcast),
+            #                tau_broadcast)
+
+            is_up_phase   = tf.less(phi, (r_on_broadcast * 0.5))
+            is_down_phase = tf.logical_and(tf.less(phi, r_on_broadcast), tf.logical_not(is_up_phase))
 
             # when manually setting, hard on over r_on, else as previous
             if self.manual_set:
-                k = tf.select(tf.logical_or(is_up,is_down), tf.to_float(is_up), self.alpha * phi)
+                k = tf.where(tf.logical_or(is_up_phase, is_down_phase), tf.to_float(is_up_phase), self.alpha * phi)
             else:
-                k = tf.select(is_up, phi / (r_on_broadcast * 0.5),
-                              tf.select(is_down, 2. - 2. * (phi / r_on_broadcast), self.alpha * phi))
+                k = tf.where(is_up_phase, phi / (r_on_broadcast * 0.5),
+                        tf.where(is_down_phase, 2. - 2. * (phi / r_on_broadcast), self.alpha * phi))
 
             # --------------------------------------- #
             # ------------- PHASED LSTM ------------- #
@@ -305,12 +312,12 @@ class PhasedLSTMCell(RNNCell):
 
             b = vs.get_variable(
                 "B", shape=[4 * self._num_units],
-                initializer=init_ops.zeros_initializer, dtype=dtype)
+                initializer=init_ops.zeros_initializer(), dtype=dtype)
 
             # i = input_gate, j = new_input, f = forget_gate, o = output_gate
-            cell_inputs = array_ops.concat(1, [filtered_inputs, m_prev])
+            cell_inputs = array_ops.concat([filtered_inputs, m_prev], axis=1)
             lstm_matrix = nn_ops.bias_add(math_ops.matmul(cell_inputs, concat_w), b)
-            i, j, f, o = array_ops.split(1, 4, lstm_matrix)
+            i, j, f, o = array_ops.split(lstm_matrix, 4, 1)
 
             # Diagonal connections
             if self._use_peepholes:
@@ -354,14 +361,14 @@ class PhasedLSTMCell(RNNCell):
             m = k * m + (1. - k) * m_prev
             # END KRONOS GATE
 
-        new_state = (LSTMStateTuple(c, m) if self._state_is_tuple
+        new_state = (core_rnn_cell.LSTMStateTuple(c, m) if self._state_is_tuple
                      else array_ops.concat(1, [c, m]))
         return m, new_state
 
 
 def multiPLSTM(input, batch_size, lens, n_layers, units_p_layer, n_input, initial_states):
     """
-    Function to build multilayer PLSTM
+    Function to build multilayer PhasedLSTM
     :param input: 3D tensor, where the time input is appended and represents the last feature of the tensor
     :param batch_size: integer, batch size
     :param lens: 2D tensor, length of the sequences in the batch (for synamic rnn use)
@@ -369,7 +376,7 @@ def multiPLSTM(input, batch_size, lens, n_layers, units_p_layer, n_input, initia
     :param units_p_layer: integer, number of units per layer
     :param n_input: integer, number of features in the input (without time feature)
     :param initial_states: list of tuples of initial states
-    :return: 3D tensor, output of the multilayer PLSTM
+    :return: 3D tensor, output of the multilayer PhasedLSTM
     """
 
     assert (len(initial_states) == n_layers)
