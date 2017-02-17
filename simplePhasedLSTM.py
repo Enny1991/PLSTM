@@ -138,16 +138,10 @@ def gen_async_sin(async_sampling, resolution=None, batch_size=32, on_target_T=(5
 
 
 def RNN(_X, _weights, _biases, lens, initial_states):
-    if FLAGS.unit == "PLSTM":
-        cell = PhasedLSTMCell(FLAGS.n_hidden, use_peepholes=True, state_is_tuple=True)
-    elif FLAGS.unit == "GRU":
-        cell = GRUCell(FLAGS.n_hidden)
-    elif FLAGS.unit == "LSTM":
-        cell = LSTMCell(FLAGS.n_hidden, use_peepholes=True, state_is_tuple=True)
-    else:
-        raise ValueError("Unit '{}' not implemented.".format(FLAGS.unit))
+    
+    cell = PhasedLSTMCell(FLAGS.n_hidden, use_peepholes=True, state_is_tuple=True)
 
-    outputs = multiPLSTM(_X, FLAGS.batch_size, lens, FLAGS.n_layers, FLAGS.n_hidden, n_input, initial_states)
+    outputs = multiPLSTM([cell] * 2, _X, lens, n_input, initial_states)
 
     outputs = tf.slice(outputs, [0, 0, 0], [-1, -1, FLAGS.n_hidden])
 

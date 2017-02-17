@@ -110,15 +110,23 @@ Furthermore there are three different ways in which you can sample these sine wa
 The 3 ways are implemented and you can select them with the flags.
 
 ---
-## Update 20-12-2016
+## Update 17-02-2017
 
-Added a builder for multilayer PLSM
+Transition to tensorflow v1.0
+The folder has now two different scripts to support v1.0 and older
+To use v1.0 refer to [PLSTM_v1](PhasedLSTMCell_v1.py)
+
+Updated also 
 ```python
-    outputs = multiPLSTM(_X, lens, n_layers, n_hidden, n_input)
+    outputs = multiPLSTM(cells, inputs, lens, n_input, initial_states)
 ```
 
----
+now the function takes a list of cells previously generated, in this 
+way you can paramterize every cell separately.
 
+The function supports also in place copy of initial states 
+
+-------------------------------------------------
 ## Contact  
 Let me know if you encounter any problem: enea.ceolini@gmail.com 
 
