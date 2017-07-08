@@ -5,6 +5,8 @@
 .idea/workspace.xml
 .idea/tasks.xml
 
+*.pyc
+phasedLSTM_run/
 # Sensitive or high-churn files:
 .idea/dataSources/
 .idea/dataSources.ids
