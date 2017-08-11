@@ -4,7 +4,7 @@ from __future__ import print_function
 
 import math
 import tensorflow as tf
-from tensorflow.contrib.rnn import LSTMStateTuple
+from tensorflow.contrib.rnn import LSTMStateTuple, RNNCell
 from tensorflow.python.ops import clip_ops
 from tensorflow.python.ops import init_ops
 from tensorflow.python.ops import nn_ops
@@ -15,7 +15,6 @@ from tensorflow.python.ops.math_ops import tanh
 from tensorflow.python.framework import ops
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import variable_scope as vs
-from tensorflow.python.ops.rnn_cell_impl import _RNNCell
 from tensorflow.python.platform import tf_logging as logging
 from tensorflow.python.framework import dtypes
 from tensorflow.python.ops import random_ops
@@ -112,7 +111,7 @@ def _linear(args, output_size, bias, bias_start=0.0, scope=None):
     return nn_ops.bias_add(res, biases)
 
 
-class PhasedLSTMCell(_RNNCell):
+class PhasedLSTMCell(RNNCell):
     """Long short-term memory unit (LSTM) recurrent network cell.
   
     The default non-peephole implementation is based on:
@@ -140,7 +139,8 @@ class PhasedLSTMCell(_RNNCell):
                  num_unit_shards=None, num_proj_shards=None,
                  forget_bias=1.0, state_is_tuple=True,
                  activation=tanh, alpha=0.001, r_on_init=0.05, tau_init=6.,
-                 manual_set=False, trainable=True):
+                 manual_set=False, trainable=True, reuse=None):
+        super(PhasedLSTMCell, self).__init__(_reuse=reuse)
         """Initialize the parameters for an LSTM cell.
     
         Args:
